@@ -55,16 +55,9 @@ namespace VSCaptureBISV
             if (parser.Arguments.ContainsKey("help"))
             {
                 Console.WriteLine("VSCaptureBISV.exe -port [portname] -interval [number]");
-                Console.WriteLine(" -export[number] -devid[name] -url [name] -waveset[number] - scale[number]");
+                Console.WriteLine("-export[number] -devid[name] -url [name] scale[number]");
                 Console.WriteLine("-port <Set serial port name>");
                 Console.WriteLine("-interval <Set numeric transmission interval>");
-                Console.WriteLine("-export <Set data export CSV, MQTT or JSON option>");
-                Console.WriteLine("-devid <Set device ID for MQTT or JSON export>");
-                Console.WriteLine("-url <Set MQTT or JSON export url>");
-                Console.WriteLine("-topic <Set topic for MQTT export>");
-                Console.WriteLine("-user <Set username for MQTT export>");
-                Console.WriteLine("-passw <Set password for MQTT export>");
-                Console.WriteLine("-waveset <Set waveform export option>");
                 Console.WriteLine("-scale <Set waveform ADC or calibrated export option>");
                 Console.WriteLine();
                 return;
@@ -76,22 +69,7 @@ namespace VSCaptureBISV
             }
             else
             {
-                Console.WriteLine("Select the Port to which Covidien BIS Vista monitor (Vista Binary protocol) is to be connected, Available Ports:");
-                foreach (string s in SerialPort.GetPortNames())
-                {
-                    Console.WriteLine(" {0}", s);
-                }
-
-
-                Console.Write("COM port({0}): ", _serialPort.PortName.ToString());
-                portName = Console.ReadLine();
-
-            }
-
-            if (portName != "")
-            {
-                // Allow the user to set the appropriate properties.
-                _serialPort.PortName = portName;
+                _serialPort.PortName = "COM2";
             }
 
             try
@@ -108,53 +86,7 @@ namespace VSCaptureBISV
                     _serialPort.DataReceived += new SerialDataReceivedEventHandler(p_DataReceived);
                 }
 
-                if (parser.Arguments.ContainsKey("interval"))
-                {
-                    sIntervalset = parser.Arguments["interval"][0];
-                }
-                else
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("Numeric Data Transmission sets:");
-                    Console.WriteLine("1. 1 second");
-                    Console.WriteLine("2. 5 second");
-                    Console.WriteLine("3. 1 minute");
-                    Console.WriteLine("4. 5 minute");
-                    Console.WriteLine("5. Single poll");
-                    Console.WriteLine();
-                    Console.Write("Choose Data Transmission interval (1-5):");
-
-                    sIntervalset = Console.ReadLine();
-
-                }
-
-                int[] setarray = { 1, 5, 60, 300, 0 };
-                short nIntervalset = 2;
-                int nInterval = 5;
-                if (sIntervalset != "") nIntervalset = Convert.ToInt16(sIntervalset);
-                if (nIntervalset > 0 && nIntervalset < 6) nInterval = setarray[nIntervalset - 1];
-
-                if (parser.Arguments.ContainsKey("spectral"))
-                {
-                    sSpectralset = parser.Arguments["spectral"][0];
-                }
-                else
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("Spectral Data options:");
-                    Console.WriteLine("1. Disabled");
-                    Console.WriteLine("2. Enabled");
-                    Console.WriteLine();
-                    Console.Write("Choose spectral data option (1-2):");
-
-                    sSpectralset = Console.ReadLine();
-                }
-                short nSpectralSet = 1;
-                if (sSpectralset != "") nSpectralSet = Convert.ToInt16(sSpectralset);
-
-                if (nSpectralSet == 1) _serialPort.m_spectraldataenable = false;
-                if (nSpectralSet == 2) _serialPort.m_spectraldataenable = true;
-
+                int nInterval = 1;
 
                 string sDataExportset;
                 if (parser.Arguments.ContainsKey("export"))
@@ -189,7 +121,6 @@ namespace VSCaptureBISV
                     {
                         Console.Write("Enter Device ID/Name:");
                         DeviceID = Console.ReadLine();
-
                     }
 
                     if (parser.Arguments.ContainsKey("url"))
@@ -200,75 +131,8 @@ namespace VSCaptureBISV
                     {
                         Console.Write("Enter JSON Data Export URL(http://):");
                         JSONPostUrl = Console.ReadLine();
-
                     }
                 }
-
-                if (nDataExportset == 3)
-                {
-                    if (parser.Arguments.ContainsKey("devid"))
-                    {
-                        DeviceID = parser.Arguments["devid"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter Device ID/Name:");
-                        DeviceID = Console.ReadLine();
-
-                    }
-
-                    if (parser.Arguments.ContainsKey("url"))
-                    {
-                        MQTTUrl = parser.Arguments["url"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter MQTT WebSocket Server URL(ws://):");
-                        MQTTUrl = Console.ReadLine();
-
-                    }
-
-                    if (parser.Arguments.ContainsKey("topic"))
-                    {
-                        MQTTtopic = parser.Arguments["topic"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter MQTT Topic:");
-                        MQTTtopic = Console.ReadLine();
-
-                    }
-
-                    if (parser.Arguments.ContainsKey("user"))
-                    {
-                        MQTTuser = parser.Arguments["user"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter MQTT Username:");
-                        MQTTuser = Console.ReadLine();
-
-                    }
-
-                    if (parser.Arguments.ContainsKey("passw"))
-                    {
-                        MQTTpassw = parser.Arguments["passw"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter MQTT Password:");
-                        MQTTpassw = Console.ReadLine();
-
-                    }
-
-                }
-
-                _serialPort.m_DeviceID = DeviceID;
-                _serialPort.m_jsonposturl = JSONPostUrl;
-                _serialPort.m_MQTTUrl = MQTTUrl;
-                _serialPort.m_MQTTtopic = MQTTtopic;
-                _serialPort.m_MQTTuser = MQTTuser;
-                _serialPort.m_MQTTpassw = MQTTpassw;
 
                 if (nDataExportset > 0 && nDataExportset < 5) _serialPort.m_dataexportset = nDataExportset;
 
@@ -286,7 +150,6 @@ namespace VSCaptureBISV
                     Console.Write("Choose Waveform data Transmission set (1-2):");
 
                     sWaveformSet = Console.ReadLine();
-
                 }
 
                 short nWaveformSet = 2;
@@ -307,7 +170,6 @@ namespace VSCaptureBISV
                     Console.Write("Choose Waveform data export scale option (1-2):");
 
                     sWavescaleSet = Console.ReadLine();
-
                 }
 
                 short nWavescaleSet = 2;
@@ -315,10 +177,6 @@ namespace VSCaptureBISV
 
                 if (nWavescaleSet == 1) _serialPort.m_calibratewavevalues = false;
                 if (nWavescaleSet == 2) _serialPort.m_calibratewavevalues = true;
-
-
-                Console.WriteLine();
-                Console.WriteLine("Requesting Transmission set {0} from monitor", nIntervalset);
 
 
                 Console.WriteLine();
@@ -364,8 +222,6 @@ namespace VSCaptureBISV
                     }
                     while (cki.Key != ConsoleKey.Escape);
                 }
-
-
             }
             catch (Exception ex)
             {
@@ -376,10 +232,7 @@ namespace VSCaptureBISV
                 _serialPort.StopTransfer();
 
                 _serialPort.Close();
-
             }
-
-
         }
 
         static void p_DataReceived(object sender, SerialDataReceivedEventArgs e)
