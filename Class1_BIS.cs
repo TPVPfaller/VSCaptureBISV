@@ -16,7 +16,7 @@
     along with VitalSignsCaptureBISV.  If not, see <http://www.gnu.org/licenses/>.*/
 
 
-using LSL;
+using SharpLSL;
 using System.Text;
 using System.IO.Ports;
 using System.Globalization;
@@ -52,43 +52,17 @@ namespace VSCaptureBISV
         public List<byte> m_BufferByteList = new List<byte>();
         public List<byte> m_ResponseByteList = new List<byte>();
         public string m_strTimestamp;
-        public byte m_parametertype;
-        private bool m_transmissionstart = true;
-        public bool m_transmissionstart2 = true;
 
-        public List<NumericValResult> m_NumericValList = new List<NumericValResult>();
-        public List<string> m_NumValHeaders = new List<string>();
-        public StringBuilder m_strbuildvalues = new StringBuilder();
-        public StringBuilder m_strbuildheaders = new StringBuilder();
 
         public List<WaveValResult> m_WaveValResultList = new List<WaveValResult>();
-        public StringBuilder m_strbuildwavevalues = new StringBuilder();
-        public StringBuilder m_strbuildwavevalues2 = new StringBuilder();
         public double m_RealtiveTimeCounter = 0;
 
         public dsc_info_struct m_Dsc_Info_Struct = new dsc_info_struct();
         public bool m_calibratewavevalues = true;
         public double m_defaultgain = 0.05;
         public double m_defaultoffset = -3234;
-        public bool m_spectraldataenable = false;
-
-        public int m_dataexportset = 1;
-        public string m_DeviceID;
-        public string m_jsonposturl;
-
-        public string m_MQTTUrl;
-        public string m_MQTTtopic;
-        public string m_MQTTuser;
-        public string m_MQTTpassw;
-        public string m_MQTTclientId = Guid.NewGuid().ToString();
-
-        public class NumericValResult
-        {
-            public string Timestamp;
-            public string PhysioID;
-            public string Value;
-            public string DeviceID;
-        }
+        private StreamOutlet eegOutlet;
+        private bool lslInitialized = false;
 
         public class WaveValResult
         {
@@ -144,23 +118,30 @@ namespace VSCaptureBISV
 
             //ASCII Encoding in C# is only 7bit so
             BPort.Encoding = Encoding.GetEncoding("ISO-8859-1");
+            InitializeLSL();
+        }
+
+        private void InitializeLSL()
+        {
+            if (lslInitialized) return;
+
+            var info = new StreamInfo(
+                "BIS_EEG",        // name
+                "EEG",            // type
+                2,                // channel count
+                128,              // sampling rate
+                ChannelFormat.Float, // channel format
+                "bisvista_eeg_001"
+            );
+
+            eegOutlet = new StreamOutlet(info);
+
+            lslInitialized = true;
         }
 
         public void DebugLine(string msg)
         {
             Debug.WriteLine(DateTime.Now.ToString("hh:mm:ss.fff") + " - " + msg);
-        }
-
-        public void RequestProcessedData()
-        {
-            BPort.WriteBuffer(DataConstants.poll_request_processed_data);
-            DebugLine("Send: Request Processed Data");
-        }
-
-        public void RequestProcessedSpectralData()
-        {
-            BPort.WriteBuffer(DataConstants.poll_request_processed_and_spectral_data);
-            DebugLine("Send: Request Processed and Spectral Data");
         }
 
         public void RequestRawEEGData()
@@ -210,27 +191,8 @@ namespace VSCaptureBISV
             {
                 do
                 {
-                    if (m_spectraldataenable == true) RequestProcessedSpectralData();
-                    else RequestProcessedData();
-                    await Task.Delay(nmillisecond);
-
-                }
-                while (true);
-            }
-            if (m_spectraldataenable == true) RequestProcessedSpectralData();
-            else RequestProcessedData();
-        }
-
-        public async Task SendCycledWaveRequests(int nInterval)
-        {
-            int nmillisecond = nInterval * 1000;
-            if (nmillisecond != 0)
-            {
-                do
-                {
                     RequestRawEEGData();
                     await Task.Delay(nmillisecond);
-
                 }
                 while (true);
             }
@@ -239,7 +201,6 @@ namespace VSCaptureBISV
 
         public void ClearReadBuffer()
         {
-            //Clear the buffer
             for (int i = 0; i < BPortBufSize; i++)
             {
                 BPort_rxbuf[i] = 0;
@@ -289,7 +250,7 @@ namespace VSCaptureBISV
                             }
                         }
 
-                        ByteArrayToFile(path, copyarray, copyarray.GetLength(0));
+                        //ByteArrayToFile(path, copyarray, copyarray.GetLength(0));
                         bytesreadtotal += lenread;
 
                     }
@@ -463,7 +424,6 @@ namespace VSCaptureBISV
                 {
                     case DataConstants.M_DATA_RAW_EEG:
                         ReadRawEEGDataPacket(messagedata);
-                        ExportWaveToCSV();
                         break;
                     default:
                         break;
@@ -561,49 +521,26 @@ namespace VSCaptureBISV
                     //nspeed eeg packets are read every sec
                     m_RealtiveTimeCounter = (m_RealtiveTimeCounter + (1 / (double)nspeed)); //sec
                     m_RealtiveTimeCounter = Math.Round(m_RealtiveTimeCounter, 3);
-                }
-            }
-        }
 
-        public void ExportWaveToCSV()
-        {
-            int wavevallistcount = m_WaveValResultList.Count;
-
-            if (wavevallistcount != 0)
-            {
-                foreach (WaveValResult WavValResult in m_WaveValResultList)
-                {
-                    if (WavValResult.PhysioID == "EEG1")
+                    if (lslInitialized)
                     {
-                        m_strbuildwavevalues.Append(WavValResult.Timestamp);
-                        m_strbuildwavevalues.Append(',');
-                        m_strbuildwavevalues.Append(WavValResult.Relativetimestamp);
-                        m_strbuildwavevalues.Append(',');
-                        m_strbuildwavevalues.Append(WavValResult.Value);
-                        m_strbuildwavevalues.Append(',');
-                        m_strbuildwavevalues.AppendLine();
-                    }
+                        float v1, v2;
 
-                    if (WavValResult.PhysioID == "EEG2")
-                    {
-                        m_strbuildwavevalues2.Append(WavValResult.Timestamp);
-                        m_strbuildwavevalues2.Append(',');
-                        m_strbuildwavevalues2.Append(WavValResult.Relativetimestamp);
-                        m_strbuildwavevalues2.Append(',');
-                        m_strbuildwavevalues2.Append(WavValResult.Value);
-                        m_strbuildwavevalues2.Append(',');
-                        m_strbuildwavevalues2.AppendLine();
+                        if (m_calibratewavevalues)
+                        {
+                            v1 = (float)ScaleADCValue(eegch1data);
+                            v2 = (float)ScaleADCValue(eegch2data);
+                        }
+                        else
+                        {
+                            v1 = eegch1data;
+                            v2 = eegch2data;
+                        }
+
+                        float[] sample = new float[] { v1, v2 };
+                        eegOutlet.PushSample(sample);
                     }
                 }
-                string pathcsv1 = Path.Combine(Directory.GetCurrentDirectory(), "EEG1WaveExport.csv");
-                string pathcsv2 = Path.Combine(Directory.GetCurrentDirectory(), "EEG2WaveExport.csv");
-
-                ExportNumValListToCSVFile(pathcsv1, m_strbuildwavevalues);
-                ExportNumValListToCSVFile(pathcsv2, m_strbuildwavevalues2);
-
-                m_strbuildwavevalues.Clear();
-                m_strbuildwavevalues2.Clear();
-                m_WaveValResultList.Clear();
             }
         }
 
@@ -614,114 +551,6 @@ namespace VSCaptureBISV
             WriteBuffer(DataConstants.poll_stop_raw_eeg_data);
             DebugLine("Send: Stop Raw EEG Data");
             this.Dispose();
-        }
-
-        bool WriteHeadersForDatatype(string datatype)
-        {
-            bool writeheader = true;
-            switch (datatype)
-            {
-                case "Numerics1":
-                    if (m_transmissionstart)
-                    {
-                        m_transmissionstart = false;
-
-                    }
-                    else writeheader = false;
-                    break;
-                case "Numerics2":
-                    if (m_transmissionstart2)
-                    {
-                        m_transmissionstart2 = false;
-                    }
-                    else writeheader = false;
-                    break;
-            }
-            return writeheader;
-        }
-
-        public void WriteNumericHeadersList(string datatype)
-        {
-            if (m_NumericValList.Count != 0 && (WriteHeadersForDatatype(datatype)))
-            {
-                string filename = String.Format("{0}BISDataExport.csv", datatype);
-
-                string pathcsv = Path.Combine(Directory.GetCurrentDirectory(), filename);
-
-                m_strbuildheaders.Append("Time");
-                m_strbuildheaders.Append(',');
-
-
-                foreach (NumericValResult NumValResult in m_NumericValList)
-                {
-                    m_strbuildheaders.Append(NumValResult.PhysioID);
-                    m_strbuildheaders.Append(',');
-                }
-
-                m_strbuildheaders.Remove(m_strbuildheaders.Length - 1, 1);
-                m_strbuildheaders.Replace(",,", ",");
-                m_strbuildheaders.AppendLine();
-                ExportNumValListToCSVFile(pathcsv, m_strbuildheaders);
-
-                m_strbuildheaders.Clear();
-                m_NumValHeaders.RemoveRange(0, m_NumValHeaders.Count);
-            }
-        }
-
-        public void SaveNumericValueListRows(string datatype)
-        {
-            if (m_dataexportset == 2) ExportNumValListToJSON(datatype);
-            if (m_dataexportset == 4) ExportNumValListToJSONFile(datatype);
-            if (m_dataexportset != 3 && m_dataexportset != 4)
-            {
-                if (m_NumericValList.Count != 0)
-                {
-                    WriteNumericHeadersList(datatype);
-                    string filename = String.Format("{0}BISDataExport.csv", datatype);
-
-                    string pathcsv = Path.Combine(Directory.GetCurrentDirectory(), filename);
-
-                    m_strbuildvalues.Append(m_NumericValList.ElementAt(0).Timestamp);
-                    m_strbuildvalues.Append(',');
-
-
-                    foreach (NumericValResult NumValResult in m_NumericValList)
-                    {
-                        m_strbuildvalues.Append(NumValResult.Value);
-                        m_strbuildvalues.Append(',');
-                    }
-
-                    m_strbuildvalues.Remove(m_strbuildvalues.Length - 1, 1);
-                    m_strbuildvalues.Replace(",,", ",");
-                    m_strbuildvalues.AppendLine();
-
-                    ExportNumValListToCSVFile(pathcsv, m_strbuildvalues);
-                    m_strbuildvalues.Clear();
-                    m_NumericValList.RemoveRange(0, m_NumericValList.Count);
-                }
-            }
-        }
-
-        public void ExportNumValListToCSVFile(string _FileName, StringBuilder strbuildNumVal)
-        {
-            try
-            {
-                // Open file for reading. 
-                using (StreamWriter wrStream = new StreamWriter(_FileName, true, Encoding.UTF8))
-                {
-                    wrStream.Write(strbuildNumVal);
-                    strbuildNumVal.Clear();
-
-                    // close file stream. 
-                    wrStream.Close();
-                }
-            }
-
-            catch (Exception _Exception)
-            {
-                // Error. 
-                Console.WriteLine("Exception caught in process: {0}", _Exception.ToString());
-            }
         }
 
         public bool ByteArrayToFile(string _FileName, byte[] _ByteArray, int nWriteLength)
@@ -747,74 +576,6 @@ namespace VSCaptureBISV
             }
             // error occured, return false. 
             return false;
-        }
-
-        public void ExportNumValListToJSON(string datatype)
-        {
-            string serializedJSON = JsonSerializer.Serialize(m_NumericValList, new JsonSerializerOptions { IncludeFields = true });
-
-            try
-            {
-                // Open file for reading. 
-                //using (StreamWriter wrStream = new StreamWriter(pathjson, true, Encoding.UTF8))
-                //{
-                // wrStream.Write(serializedJSON);
-                //  wrStream.Close();
-                //}
-
-                Task.Run(() => PostJSONDataToServer(serializedJSON));
-            }
-
-            catch (Exception _Exception)
-            {
-                // Error. 
-                Console.WriteLine("Exception caught in process: {0}", _Exception.ToString());
-            }
-        }
-
-        public void ExportNumValListToJSONFile(string datatype)
-        {
-            string serializedJSON = JsonSerializer.Serialize(m_NumericValList, new JsonSerializerOptions { IncludeFields = true });
-
-            m_NumericValList.RemoveRange(0, m_NumericValList.Count);
-
-            string filename = String.Format("DataExportVSC.json");
-
-            string pathjson = Path.Combine(Directory.GetCurrentDirectory(), filename);
-
-            try
-            {
-                // Open file for reading. 
-                using (StreamWriter wrStream = new StreamWriter(pathjson, true, Encoding.UTF8))
-                {
-                    wrStream.Write(serializedJSON);
-
-                    wrStream.Close();
-                }
-            }
-
-            catch (Exception _Exception)
-            {
-                // Error. 
-                Console.WriteLine("Exception caught in process: {0}", _Exception.ToString());
-            }
-        }
-
-        public async Task PostJSONDataToServer(string postData)
-        {
-            using (HttpClient client = new HttpClient())
-            {
-                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
-
-                var data = new StringContent(postData, Encoding.UTF8, "application/json");
-
-                var response = await client.PostAsync(m_jsonposturl, data);
-                response.EnsureSuccessStatusCode();
-
-                string result = await response.Content.ReadAsStringAsync();
-
-                Console.WriteLine(result);
-            }
         }
 
 

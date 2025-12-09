@@ -8,13 +8,22 @@
     <PackageLicenseExpression>LGPL-3.0-or-later</PackageLicenseExpression>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="MQTTnet" Version="4.3.6.1152" />
     <PackageReference Include="MQTTnet.Extensions.ManagedClient" Version="4.3.6.1152" />
+    <PackageReference Include="SharpLSL" Version="0.0.10" />
     <PackageReference Include="System.IO.Ports" Version="8.0.0" />
-    <PackageReference Include="LSL" Version="1.16.0" />
+    <PackageReference Include="System.Management" Version="10.0.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="lsl.dll">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+</ItemGroup>
 
 </Project>

@@ -16,12 +16,7 @@
     along with VitalSignsCaptureBISV.  If not, see <http://www.gnu.org/licenses/>.*/
 
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO;
+using System.Management;
 using System.IO.Ports;
 
 namespace VSCaptureBISV
@@ -29,12 +24,6 @@ namespace VSCaptureBISV
     class ProgramBISV
     {
         static EventHandler dataEvent;
-        public static string DeviceID;
-        public static string JSONPostUrl;
-        public static string MQTTUrl;
-        public static string MQTTtopic;
-        public static string MQTTuser;
-        public static string MQTTpassw;
 
         public static void Main(string[] args)
         {
@@ -54,8 +43,7 @@ namespace VSCaptureBISV
 
             if (parser.Arguments.ContainsKey("help"))
             {
-                Console.WriteLine("VSCaptureBISV.exe -port [portname] -interval [number]");
-                Console.WriteLine("-export[number] -devid[name] -url [name] scale[number]");
+                Console.WriteLine("VSCaptureBISV.exe -port[portname] -interval[number] -scale[number]");
                 Console.WriteLine("-port <Set serial port name>");
                 Console.WriteLine("-interval <Set numeric transmission interval>");
                 Console.WriteLine("-scale <Set waveform ADC or calibrated export option>");
@@ -65,11 +53,21 @@ namespace VSCaptureBISV
 
             if (parser.Arguments.ContainsKey("port"))
             {
-                portName = parser.Arguments["port"][0];
+                _serialPort.PortName = parser.Arguments["port"][0];
             }
             else
             {
-                _serialPort.PortName = "COM2";
+                Console.WriteLine("Available serial ports:");
+                foreach (string s in SerialPort.GetPortNames())
+                {
+                    Console.WriteLine(" {0}", s);
+                }
+                Console.Write("Type in the serial port name where the monitor is connected (default is COM2):");
+                _serialPort.PortName = Console.ReadLine();
+                if (_serialPort.PortName == "")
+                {
+                    _serialPort.PortName = "COM2";
+                }
             }
 
             try
@@ -87,73 +85,6 @@ namespace VSCaptureBISV
                 }
 
                 int nInterval = 1;
-
-                string sDataExportset;
-                if (parser.Arguments.ContainsKey("export"))
-                {
-                    sDataExportset = parser.Arguments["export"][0];
-                }
-                else
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("Data export options:");
-                    Console.WriteLine("1. Export as CSV files");
-                    Console.WriteLine("2. Export as CSV files and JSON to URL");
-                    Console.WriteLine("3. Export as MQTT to URL");
-                    Console.WriteLine("4. Export as JSON file");
-                    Console.WriteLine();
-                    Console.Write("Choose data export option (1-4):");
-
-                    sDataExportset = Console.ReadLine();
-
-                }
-
-                int nDataExportset = 1;
-                if (sDataExportset != "") nDataExportset = Convert.ToInt32(sDataExportset);
-
-                if (nDataExportset == 2)
-                {
-                    if (parser.Arguments.ContainsKey("devid"))
-                    {
-                        DeviceID = parser.Arguments["devid"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter Device ID/Name:");
-                        DeviceID = Console.ReadLine();
-                    }
-
-                    if (parser.Arguments.ContainsKey("url"))
-                    {
-                        JSONPostUrl = parser.Arguments["url"][0];
-                    }
-                    else
-                    {
-                        Console.Write("Enter JSON Data Export URL(http://):");
-                        JSONPostUrl = Console.ReadLine();
-                    }
-                }
-
-                if (nDataExportset > 0 && nDataExportset < 5) _serialPort.m_dataexportset = nDataExportset;
-
-                if (parser.Arguments.ContainsKey("waveset"))
-                {
-                    sWaveformSet = parser.Arguments["waveset"][0];
-                }
-                else
-                {
-                    Console.WriteLine();
-                    Console.WriteLine("Waveform data Transmission sets:");
-                    Console.WriteLine("1. None");
-                    Console.WriteLine("2. EEG1, EEG2");
-                    Console.WriteLine();
-                    Console.Write("Choose Waveform data Transmission set (1-2):");
-
-                    sWaveformSet = Console.ReadLine();
-                }
-
-                short nWaveformSet = 2;
-                if (sWaveformSet != "") nWaveformSet = Convert.ToInt16(sWaveformSet);
 
                 string sWavescaleSet;
                 if (parser.Arguments.ContainsKey("scale"))
@@ -180,17 +111,12 @@ namespace VSCaptureBISV
 
 
                 Console.WriteLine();
-                Console.WriteLine("Data will be written to CSV file BISVExportData.csv in same folder");
+                Console.WriteLine("Data will be sent to LSL with name BIS_EEG");
 
                 //_serialPort.RequestStatus();
                 //WaitForMilliSeconds(200);
 
                 Task.Run(() => _serialPort.SendCycledRequests(nInterval));
-
-                if (nWaveformSet != 1)
-                {
-                    Task.Run(() => _serialPort.SendCycledWaveRequests(nInterval));
-                }
 
                 Console.WriteLine("Press Escape button to Stop");
 
@@ -209,7 +135,6 @@ namespace VSCaptureBISV
                         }
                     }
                     while (Console.KeyAvailable == false);
-
                 }
 
                 if (!_serialPort.OSIsUnix())
@@ -237,9 +162,7 @@ namespace VSCaptureBISV
 
         static void p_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
-
             ReadData(sender);
-
         }
 
         public static void ReadData(object sender)
@@ -247,23 +170,13 @@ namespace VSCaptureBISV
             try
             {
                 (sender as BSerialPort).ReadBuffer();
-
             }
             catch (TimeoutException) { }
         }
-
-        public static void WaitForMilliSeconds(int nmillisec)
-        {
-            DateTime dt = DateTime.Now;
-            DateTime dt2 = dt.AddMilliseconds(nmillisec);
-            do
-            {
-                dt = DateTime.Now;
-            }
-            while (dt2 > dt);
-
-        }
     }
+
+
+
 
     public class CommandLineParser
     {
@@ -301,11 +214,6 @@ namespace VSCaptureBISV
 
             if (currentName != "")
                 Arguments[currentName] = values.ToArray();
-        }
-
-        public bool Contains(string name)
-        {
-            return Arguments.ContainsKey(name);
         }
     }
 
