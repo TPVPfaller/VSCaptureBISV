@@ -57,16 +57,17 @@ namespace VSCaptureBISV
             }
             else
             {
+                _serialPort.PortName = "COM2";
                 Console.WriteLine("Available serial ports:");
                 foreach (string s in SerialPort.GetPortNames())
                 {
                     Console.WriteLine(" {0}", s);
                 }
-                Console.Write("Type in the serial port name where the monitor is connected (default is COM2):");
-                _serialPort.PortName = Console.ReadLine();
-                if (_serialPort.PortName == "")
+                Console.Write("Type in the serial port name where the monitor is connected (default is {0}):", _serialPort.PortName);
+                string portInput = Console.ReadLine();
+                if (!string.IsNullOrWhiteSpace(portInput))
                 {
-                    _serialPort.PortName = "COM2";
+                    _serialPort.PortName = portInput.Trim();
                 }
             }
 
@@ -111,7 +112,7 @@ namespace VSCaptureBISV
 
 
                 Console.WriteLine();
-                Console.WriteLine("Data will be sent to LSL with name BIS_EEG");
+                Console.WriteLine("Data will be read from {0} and sent to LSL with name BIS_EEG", _serialPort.PortName);
 
                 //_serialPort.RequestStatus();
                 //WaitForMilliSeconds(200);
